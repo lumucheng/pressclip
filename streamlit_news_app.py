@@ -24,13 +24,21 @@ def login(username, password):
     return False
 
 def search_articles(query):
-    query = f"%{query}%"
-    c.execute('''
-        SELECT title, author, source, content, date_created, date_updated, mp_mentioned, categories, summary
-        FROM articles
-        WHERE mp_mentioned LIKE ?
-        ORDER BY date_created DESC
-    ''', (query,))
+    if query.strip() == "":
+        # Return all articles when no search term is provided
+        c.execute('''
+            SELECT title, author, source, content, date_created, date_updated, mp_mentioned, categories, summary
+            FROM articles
+            ORDER BY date_created DESC
+        ''')
+    else:
+        query = f"%{query}%"
+        c.execute('''
+            SELECT title, author, source, content, date_created, date_updated, mp_mentioned, categories, summary
+            FROM articles
+            WHERE mp_mentioned LIKE ?
+            ORDER BY date_created DESC
+        ''', (query,))
     return c.fetchall()
 
 # Dialog for article details
@@ -73,20 +81,31 @@ def main():
             st.info("Please log in to access the app.")
         return
 
-    # Main search functionality (no sidebar needed)
+    # Main search functionality
     st.subheader("Search News Articles")
-    search_query = st.text_input("Enter search term (MP mentioned)")
+    
+    # Create columns for inline search box and button
+    col1, col2 = st.columns([4, 1])
+    
+    with col1:
+        search_query = st.text_input("Enter search term (MP mentioned)", label_visibility="collapsed", placeholder="Enter search term (MP mentioned)")
+    
+    with col2:
+        search_button = st.button("Search", use_container_width=True)
 
-    if st.button("Search"):
-        if search_query.strip() == "":
-            st.warning("Please enter a search term")
-        else:
-            st.session_state.search_results = search_articles(search_query)
-            st.session_state.search_performed = True
+    # Perform search when button is clicked
+    if search_button:
+        st.session_state.search_results = search_articles(search_query)
+        st.session_state.search_performed = True
 
     # Display search results
     if st.session_state.search_performed:
         if st.session_state.search_results:
+            if search_query.strip() == "":
+                st.info(f"Showing all articles ({len(st.session_state.search_results)} results)")
+            else:
+                st.info(f"Found {len(st.session_state.search_results)} articles matching '{search_query}'")
+            
             cols = st.columns(3)
             for idx, result in enumerate(st.session_state.search_results):
                 title, author, source, content, date_created, date_updated, mp_mentioned, categories, summary = result
@@ -112,9 +131,12 @@ def main():
                         }
                         show_article_dialog(article_data)
         else:
-            st.info("No articles found matching your search.")
+            if search_query.strip() == "":
+                st.info("No articles found in the database.")
+            else:
+                st.info(f"No articles found matching '{search_query}'.")
     else:
-        st.info("Welcome! Please enter a search term and click Search to find articles.")
+        st.info("Welcome! Click Search to view all articles, or enter a search term to filter results.")
 
 if __name__ == "__main__":
     main()
